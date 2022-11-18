@@ -10,5 +10,11 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
-      - name: install dependencies
-        run: brew install wget
+      - name: fetch python release
+        run: wget https://github.com/RapidSilicon/post_build_artifacts/releases/download/v0.1/python3.8_static_lib.tar.gz
+      - name: extract and test
+        run: |
+            tar -xvzf python3.8_static_lib.tar.gz
+            cd python3.8/bin
+            ./python3.8 -V
+        
