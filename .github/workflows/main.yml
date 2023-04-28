@@ -1,0 +1,93 @@
+name: 'main'
+
+on:
+  push:
+  pull_request:
+
+jobs:
+# Reference: https://github.com/OPM/ResInsight/blob/dev/.github/workflows/centos7.yml
+  centos7-gcc:
+    name:  ${{ matrix.mode }}
+
+    runs-on: ubuntu-20.04
+    container:
+      image: centos:7
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        mode:
+        - test
+
+    env:
+      MODE: ${{ matrix.mode }}
+
+    steps:
+    - name: update Git
+      run: |
+        yum remove -y git*
+        yum install -y https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm
+        yum install -y git
+
+    - name: Cancel previous
+      uses: styfle/cancel-workflow-action@0.11.0
+      with:
+        access_token: ${{ github.token }}
+
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Print server resource
+      if: success() || failure()
+      run: |
+        df -h
+
+#    - name: Download workflow artifact
+#      if: matrix.mode == 'test'
+#      uses: dawidd6/action-download-artifact@v2.24.0
+#      with:
+#        workflow: main.yml
+#        repo: ${{ github.repository }}
+#        #run_number: 3912
+#        branch: main
+#        name: buildqt6-x86_64-gcc
+#        skip_unpack: true
+
+    - name: Install dependencies and build QT
+      run: |
+        bash .github/workflows/install_centos_dependencies_build.sh
+
+    - name: Prepare QT build artifacts
+      if: matrix.mode == 'test'
+      run: |
+        tar czvfp buildqt6-x86_64-gcc.tgz buildqt6
+
+    - name: Archive QT build artifacts
+      if: matrix.mode == 'test'
+      uses: actions/upload-artifact@v3.1.0
+      with:
+        name: buildqt6-x86_64-gcc
+        path: buildqt6-x86_64-gcc.tgz
+
+    - name: Show shell configuration
+      run: |
+        env
+        source /opt/rh/devtoolset-11/enable
+        which gcc 
+        which g++ 
+
+    - name: Configure shell
+      run: |
+        source /opt/rh/devtoolset-11/enable
+        echo 'CC=/opt/rh/devtoolset-11/root/usr/bin/gcc' >> $GITHUB_ENV
+        echo 'CXX=/opt/rh/devtoolset-11/root/usr/bin/g++' >> $GITHUB_ENV
+        echo 'PATH=/usr/local/Qt-6.5.0/bin:/usr/lib/ccache:'"$PATH" >> $GITHUB_ENV
+        echo 'PREFIX=/tmp/foedag-install' >> $GITHUB_ENV
+        echo "$PREFIX" >> $GITHUB_PATH
+        echo "ADDITIONAL_CMAKE_OPTIONS='-DMY_CXX_WARNING_FLAGS="-W -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -Werror -UNDEBUG"'" >> $GITHUB_ENV
+        echo 'RULE_MESSAGES=off' >> $GITHUB_ENV
